@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - EcoShakti{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">⚙️ System Settings</h4>
+                    <p class="text-muted mb-0 small">Configure your renewable energy monitoring system</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid Connection Status Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plug me-2"></i>Grid Connection Management
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <!-- Connection Status Display -->
+                        <div class="col-md-6">
+                            <div class="connection-status-card p-3 rounded" id="connectionStatusCard">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="status-icon me-3" id="statusIcon">
+                                        <i class="fas fa-wifi fs-2"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1" id="connectionTitle">Grid Connection Status</h6>
+                                        <span class="badge" id="connectionBadge">Checking...</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="connection-details">
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <small class="text-muted">Grid ID</small>
+                                            <div class="fw-bold small">{{ user.grid_id }}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Last Sync</small>
+                                            <div class="fw-bold small" id="lastSyncTime">--</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Data Points</small>
+                                            <div class="fw-bold small" id="dataPoints">--</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Signal Strength</small>
+                                            <div class="fw-bold small" id="signalStrength">--</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Connection Controls -->
+                        <div class="col-md-6">
+                            <div class="connection-controls text-center">
+                                <h6 class="mb-3">Connection Controls</h6>
+                                
+                                <!-- Main Connect/Disconnect Button -->
+                                <button class="btn btn-lg mb-3" id="connectionToggleBtn" onclick="toggleGridConnection()">
+                                    <i class="fas fa-power-off me-2"></i>
+                                    <span id="connectionToggleText">Disconnect</span>
+                                </button>
+                                
+                                <!-- Additional Controls -->
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-info btn-sm" onclick="testConnection()">
+                                        <i class="fas fa-stethoscope me-1"></i> Test Connection
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm" onclick="reconnectGrid()">
+                                        <i class="fas fa-sync me-1"></i> Force Reconnect
+                                    </button>
+                                </div>
+                                
+                                <!-- Emergency Mode -->
+                                <div class="mt-3 p-2 bg-light rounded">
+                                    <small class="text-muted">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        Emergency mode: Data logging continues offline
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Settings -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>Monitoring Settings
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="updateInterval" class="form-label">Update Interval</label>
+                        <select class="form-select" id="updateInterval">
+                            <option value="30">30 seconds (Real-time)</option>
+                            <option value="60" selected>60 seconds (Standard - Recommended)</option>
+                            <option value="120">2 minutes (Power Saving)</option>
+                            <option value="300">5 minutes (Minimal)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="dataRetention" class="form-label">Data Retention</label>
+                        <select class="form-select" id="dataRetention">
+                            <option value="7">7 days</option>
+                            <option value="30" selected>30 days</option>
+                            <option value="90">90 days</option>
+                            <option value="365">1 year</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="enableAlerts" checked>
+                        <label class="form-check-label" for="enableAlerts">
+                            Enable Real-time Alerts
+                        </label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="autoReconnect" checked>
+                        <label class="form-check-label" for="autoReconnect">
+                            Auto-reconnect on disconnect
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Security Settings
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="gridPassword" class="form-label">Grid Access Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="gridPassword" placeholder="Enter grid access key">
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility()">
+                                <i class="fas fa-eye" id="passwordToggleIcon"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Required for secure grid connection</small>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="encryptData" checked>
+                        <label class="form-check-label" for="encryptData">
+                            Encrypt transmitted data
+                        </label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="secureMode">
+                        <label class="form-check-label" for="secureMode">
+                            Enhanced security mode
+                        </label>
+                    </div>
+                    
+                    <hr>
+                    
+                    <button class="btn btn-outline-primary btn-sm w-100" onclick="saveSettings()">
+                        <i class="fas fa-save me-1"></i> Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Information -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>System Information
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">System Version</small>
+                            <div class="fw-bold">v2.1.3</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Grid Protocol</small>
+                            <div class="fw-bold">IEEE 2030.5</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Last Maintenance</small>
+                            <div class="fw-bold">2 days ago</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Next Update</small>
+                            <div class="fw-bold">7 days</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global connection state
+    let isGridConnected = true;
+    let connectionInterval;
+    
+    // Initialize settings page
+    document.addEventListener('DOMContentLoaded', function() {
+        updateConnectionStatus();
+        startConnectionMonitoring();
+    });
+    
+    // Update connection status display
+    function updateConnectionStatus() {
+        const statusCard = document.getElementById('connectionStatusCard');
+        const statusIcon = document.getElementById('statusIcon');
+        const connectionBadge = document.getElementById('connectionBadge');
+        const toggleBtn = document.getElementById('connectionToggleBtn');
+        const toggleText = document.getElementById('connectionToggleText');
+        const lastSyncTime = document.getElementById('lastSyncTime');
+        const dataPoints = document.getElementById('dataPoints');
+        const signalStrength = document.getElementById('signalStrength');
+        
+        if (isGridConnected) {
+            // Connected state
+            statusCard.className = 'connection-status-card p-3 rounded border border-success bg-success bg-opacity-10';
+            statusIcon.innerHTML = '<i class="fas fa-wifi text-success fs-2"></i>';
+            connectionBadge.className = 'badge bg-success';
+            connectionBadge.textContent = 'Connected';
+            toggleBtn.className = 'btn btn-danger btn-lg mb-3';
+            toggleText.textContent = 'Disconnect';
+            
+            // Update connection details
+            lastSyncTime.textContent = new Date().toLocaleTimeString();
+            dataPoints.textContent = '1,247';
+            signalStrength.textContent = 'Strong (98%)';
+        } else {
+            // Disconnected state
+            statusCard.className = 'connection-status-card p-3 rounded border border-danger bg-danger bg-opacity-10';
+            statusIcon.innerHTML = '<i class="fas fa-wifi-slash text-danger fs-2"></i>';
+            connectionBadge.className = 'badge bg-danger';
+            connectionBadge.textContent = 'Disconnected';
+            toggleBtn.className = 'btn btn-success btn-lg mb-3';
+            toggleText.textContent = 'Connect';
+            
+            // Update connection details
+            lastSyncTime.textContent = 'Disconnected';
+            dataPoints.textContent = '--';
+            signalStrength.textContent = 'No Signal';
+        }
+    }
+    
+    // Toggle grid connection
+    function toggleGridConnection() {
+        if (isGridConnected) {
+            disconnectFromGrid();
+        } else {
+            connectToGrid();
+        }
+    }
+    
+    // Connect to grid
+    function connectToGrid() {
+        showNotification('Connecting to grid...', 'info');
+        
+        // Simulate connection process
+        setTimeout(() => {
+            isGridConnected = true;
+            updateConnectionStatus();
+            
+            // Notify the main application
+            fetch('/api/grid/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Successfully connected to grid monitoring system!', 'success');
+                    // Emit event to resume data updates
+                    if (typeof socket !== 'undefined') {
+                        socket.emit('grid_connected');
+                    }
+                } else {
+                    showNotification('Failed to connect: ' + data.error, 'error');
+                    isGridConnected = false;
+                    updateConnectionStatus();
+                }
+            })
+            .catch(error => {
+                showNotification('Connection error: ' + error.message, 'error');
+                isGridConnected = false;
+                updateConnectionStatus();
+            });
+        }, 2000);
+    }
+    
+    // Disconnect from grid
+    function disconnectFromGrid() {
+        showNotification('Disconnecting from grid...', 'warning');
+        
+        // Simulate disconnection process
+        setTimeout(() => {
+            isGridConnected = false;
+            updateConnectionStatus();
+            
+            // Notify the main application
+            fetch('/api/grid/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Disconnected from grid monitoring system', 'warning');
+                    // Emit event to stop data updates
+                    if (typeof socket !== 'undefined') {
+                        socket.emit('grid_disconnected');
+                    }
+                } else {
+                    showNotification('Failed to disconnect: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Disconnection error: ' + error.message, 'error');
+            });
+        }, 1000);
+    }
+    
+    // Test connection
+    function testConnection() {
+        showNotification('Testing connection...', 'info');
+        
+        fetch('/api/grid/test', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`Connection test successful! Latency: ${data.latency}ms`, 'success');
+            } else {
+                showNotification('Connection test failed: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Test failed: ' + error.message, 'error');
+        });
+    }
+    
+    // Force reconnect
+    function reconnectGrid() {
+        showNotification('Force reconnecting...', 'info');
+        
+        // First disconnect, then connect
+        isGridConnected = false;
+        updateConnectionStatus();
+        
+        setTimeout(() => {
+            connectToGrid();
+        }, 1500);
+    }
+    
+    // Start connection monitoring
+    function startConnectionMonitoring() {
+        connectionInterval = setInterval(() => {
+            if (isGridConnected) {
+                // Update last sync time
+                document.getElementById('lastSyncTime').textContent = new Date().toLocaleTimeString();
+            }
+        }, 5000); // Update every 5 seconds instead of every second
+    }
+    
+    // Save settings
+    function saveSettings() {
+        const settings = {
+            updateInterval: document.getElementById('updateInterval').value,
+            dataRetention: document.getElementById('dataRetention').value,
+            enableAlerts: document.getElementById('enableAlerts').checked,
+            autoReconnect: document.getElementById('autoReconnect').checked,
+            encryptData: document.getElementById('encryptData').checked,
+            secureMode: document.getElementById('secureMode').checked,
+            gridPassword: document.getElementById('gridPassword').value
+        };
+        
+        fetch('/api/settings/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Settings saved successfully!', 'success');
+            } else {
+                showNotification('Failed to save settings: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Save error: ' + error.message, 'error');
+        });
+    }
+    
+    // Toggle password visibility
+    function togglePasswordVisibility() {
+        const passwordField = document.getElementById('gridPassword');
+        const toggleIcon = document.getElementById('passwordToggleIcon');
+        
+        if (passwordField.type === 'password') {
+            passwordField.type = 'text';
+            toggleIcon.className = 'fas fa-eye-slash';
+        } else {
+            passwordField.type = 'password';
+            toggleIcon.className = 'fas fa-eye';
+        }
+    }
+    
+    // Show notification (reuse from base template)
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 70px; right: 20px; z-index: 9999; max-width: 350px;';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - EcoShakti{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">👥 User Management</h4>
+                    <p class="text-muted mb-0 small">Manage EcoShakti user accounts</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="total-users">Loading...</h3>
+                    <p class="mb-0">Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="active-users">Loading...</h3>
+                    <p class="mb-0">Active Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="grid-connections">Loading...</h3>
+                    <p class="mb-0">Grid Connections</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import/Export Controls -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-download me-2"></i>Export Users
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Export user data to CSV or JSON format</p>
+                    <div class="d-grid gap-2 d-md-flex">
+                        <button class="btn btn-success" onclick="exportUsers('csv')">
+                            <i class="fas fa-file-csv me-2"></i>Export as CSV
+                        </button>
+                        <button class="btn btn-info" onclick="exportUsers('json')">
+                            <i class="fas fa-file-code me-2"></i>Export as JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-upload me-2"></i>Import Users
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Import users from CSV or JSON file</p>
+                    <form id="importForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="importFile" accept=".csv,.json" required>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="overwriteExisting">
+                            <label class="form-check-label" for="overwriteExisting">
+                                Overwrite existing users
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Import Users
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-users me-2"></i>User List
+                    </h6>
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshUserList()">
+                        <i class="fas fa-refresh me-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Full Name</th>
+                                    <th>Grid ID</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Loading users...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete user <strong id="delete-username"></strong>?</p>
+                <p class="text-danger small">
+                    <i class="fas fa-warning me-1"></i>
+                    This action cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+                    <i class="fas fa-trash me-2"></i>Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let users = [];
+let deleteUserId = null;
+
+// Load users on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+});
+
+// Load users from API
+function loadUsers() {
+    fetch('/api/users/list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                users = data.users;
+                displayUsers(users);
+                updateStatistics(users);
+            } else {
+                showNotification('Failed to load users: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+            showNotification('Failed to load users', 'error');
+        });
+}
+
+// Display users in table
+function displayUsers(userList) {
+    const tbody = document.getElementById('users-table-body');
+    
+    if (userList.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4">
+                    <i class="fas fa-users text-muted" style="font-size: 2rem;"></i>
+                    <p class="mt-2 text-muted">No users found</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = userList.map(user => `
+        <tr ${user.is_current ? 'class="table-primary"' : ''}>
+            <td>${user.id}</td>
+            <td>
+                ${user.username}
+                ${user.is_current ? '<span class="badge bg-primary ms-1">You</span>' : ''}
+            </td>
+            <td>${user.email}</td>
+            <td>${user.full_name || '-'}</td>
+            <td>
+                <code class="small">${user.grid_id}</code>
+            </td>
+            <td>
+                <small>${new Date(user.created_at).toLocaleDateString()}</small>
+            </td>
+            <td>
+                ${!user.is_current ? `
+                    <button class="btn btn-danger btn-sm" onclick="confirmDelete('${user.id}', '${user.username}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ` : `
+                    <span class="text-muted small">Current User</span>
+                `}
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Update statistics
+function updateStatistics(userList) {
+    document.getElementById('total-users').textContent = userList.length;
+    document.getElementById('active-users').textContent = userList.length; // All users are considered active
+    document.getElementById('grid-connections').textContent = userList.filter(u => u.grid_id).length;
+}
+
+// Export users
+function exportUsers(format) {
+    const url = `/api/users/export/${format}`;
+    
+    // Create temporary link to download file
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ecoshakti_users.${format}`;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showNotification(`Users exported as ${format.toUpperCase()}`, 'success');
+}
+
+// Import users
+document.getElementById('importForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('importFile');
+    const overwriteCheckbox = document.getElementById('overwriteExisting');
+    
+    if (!fileInput.files[0]) {
+        showNotification('Please select a file to import', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('overwrite_existing', overwriteCheckbox.checked);
+    
+    // Show loading state
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Importing...';
+    submitBtn.disabled = true;
+    
+    fetch('/api/users/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = `Import completed! ${data.imported} users imported`;
+            if (data.skipped > 0) {
+                message += `, ${data.skipped} users skipped`;
+            }
+            if (data.errors && data.errors.length > 0) {
+                message += `. ${data.errors.length} errors occurred.`;
+                console.log('Import errors:', data.errors);
+            }
+            
+            showNotification(message, 'success');
+            loadUsers(); // Refresh user list
+            fileInput.value = ''; // Clear file input
+            overwriteCheckbox.checked = false;
+        } else {
+            showNotification('Import failed: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Import error:', error);
+        showNotification('Import failed', 'error');
+    })
+    .finally(() => {
+        // Restore button state
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+});
+
+// Confirm delete
+function confirmDelete(userId, username) {
+    deleteUserId = userId;
+    document.getElementById('delete-username').textContent = username;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+// Delete user
+document.getElementById('confirm-delete-btn').addEventListener('click', function() {
+    if (!deleteUserId) return;
+    
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+    btn.disabled = true;
+    
+    fetch(`/api/users/delete/${deleteUserId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            loadUsers(); // Refresh user list
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+        } else {
+            showNotification('Delete failed: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Delete error:', error);
+        showNotification('Delete failed', 'error');
+    })
+    .finally(() => {
+        // Restore button state
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        deleteUserId = null;
+    });
+});
+
+// Refresh user list
+function refreshUserList() {
+    loadUsers();
+    showNotification('User list refreshed', 'info');
+}
+
+// Show notification function (assuming it exists in base template)
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 70px; right: 20px; z-index: 9999; max-width: 350px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

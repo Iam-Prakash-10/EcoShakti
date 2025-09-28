@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis - EcoShakti{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1>Energy Analysis</h1>
+            <p class="text-muted">Detailed analysis and insights for your renewable energy system</p>
+        </div>
+    </div>
+    
+    <!-- Analysis Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Solar Panel Efficiency Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div id="solar-analysis-chart" class="chart-container"></div>
+                    <div class="mt-3">
+                        <h6>Fault Detection Results</h6>
+                        <div id="fault-results">
+                            <div class="text-center text-muted py-3">
+                                <div class="loading-spinner"></div>
+                                <p class="mt-2">Analyzing solar panel performance...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Energy Trading Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div id="trading-analysis">
+                        <div class="text-center text-muted py-3">
+                            <div class="loading-spinner"></div>
+                            <p class="mt-2">Loading trading analysis...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ML Predictions -->
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Machine Learning Predictions & Recommendations</h5>
+                </div>
+                <div class="card-body">
+                    <div id="ml-predictions">
+                        <div class="text-center text-muted py-3">
+                            <div class="loading-spinner"></div>
+                            <p class="mt-2">Generating ML predictions...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAnalysisData();
+    });
+    
+    function loadAnalysisData() {
+        // Load solar analysis
+        loadSolarAnalysis();
+        
+        // Load trading analysis
+        loadTradingAnalysis();
+        
+        // Load ML predictions
+        loadMLPredictions();
+    }
+    
+    function loadSolarAnalysis() {
+        fetch('/api/solar-analysis')
+            .then(response => response.json())
+            .then(data => {
+                displaySolarAnalysis(data);
+            })
+            .catch(error => {
+                console.error('Error loading solar analysis:', error);
+                showError('solar-analysis-chart', 'Failed to load solar analysis');
+            });
+    }
+    
+    function displaySolarAnalysis(data) {
+        // Create scatter plot for sun intensity vs power
+        const traces = [{
+            x: data.analysis_data.map(d => d.sun_intensity),
+            y: data.analysis_data.map(d => d.solar_power),
+            mode: 'markers',
+            type: 'scatter',
+            name: 'Actual Power',
+            marker: {
+                size: 6,
+                color: data.analysis_data.map(d => d.efficiency),
+                colorscale: 'RdYlGn',
+                colorbar: {title: 'Efficiency (%)'}
+            }
+        }, {
+            x: data.analysis_data.map(d => d.sun_intensity),
+            y: data.analysis_data.map(d => d.expected_power),
+            mode: 'lines',
+            type: 'scatter',
+            name: 'Expected Power',
+            line: {color: 'red', dash: 'dash'}
+        }];
+        
+        const layout = {
+            title: 'Sun Intensity vs Solar Power Generation',
+            xaxis: {title: 'Sun Intensity (%)'},
+            yaxis: {title: 'Solar Power (W)'},
+            hovermode: 'closest'
+        };
+        
+        Plotly.newPlot('solar-analysis-chart', traces, layout, {responsive: true, displayModeBar: false});
+        
+        // Display fault results
+        displayFaultResults(data.fault_details);
+    }
+    
+    function displayFaultResults(faults) {
+        const faultResults = document.getElementById('fault-results');
+        
+        if (faults.length === 0) {
+            faultResults.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    No faults detected in solar panels
+                </div>
+            `;
+        } else {
+            let faultHtml = '<div class="list-group">';
+            faults.forEach(fault => {
+                faultHtml += `
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1 text-danger">${fault.fault_type}</h6>
+                            <small>${fault.timestamp.substring(0, 16)}</small>
+                        </div>
+                        <p class="mb-1">Efficiency loss: ${fault.efficiency_loss}%</p>
+                        <small>Expected: ${fault.expected_power}W, Actual: ${fault.actual_power}W</small>
+                    </div>
+                `;
+            });
+            faultHtml += '</div>';
+            faultResults.innerHTML = faultHtml;
+        }
+    }
+    
+    function loadTradingAnalysis() {
+        fetch('/api/energy-trading')
+            .then(response => response.json())
+            .then(data => {
+                displayTradingAnalysis(data);
+            })
+            .catch(error => {
+                console.error('Error loading trading analysis:', error);
+                showError('trading-analysis', 'Failed to load trading analysis');
+            });
+    }
+    
+    function displayTradingAnalysis(data) {
+        const tradingDiv = document.getElementById('trading-analysis');
+        
+        let html = '<h6>Recent Trading Opportunities</h6>';
+        
+        if (data.trading_opportunities.length === 0) {
+            html += `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No trading opportunities found in recent data
+                </div>
+            `;
+        } else {
+            html += '<div class="list-group">';
+            data.trading_opportunities.slice(0, 5).forEach(opportunity => {
+                const badgeClass = opportunity.opportunity_type === 'SELL' ? 'success' : 'warning';
+                const icon = opportunity.opportunity_type === 'SELL' ? 'arrow-up' : 'arrow-down';
+                
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <span class="badge bg-${badgeClass}">
+                                    <i class="fas fa-${icon} me-1"></i>${opportunity.opportunity_type}
+                                </span>
+                            </h6>
+                            <small>${opportunity.timestamp.substring(0, 16)}</small>
+                        </div>
+                        <p class="mb-1">Power: ${opportunity.power_amount.toFixed(0)}W</p>
+                        <small>Value: $${opportunity.estimated_value.toFixed(2)}</small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+        
+        // Add optimal times
+        if (data.optimal_times) {
+            html += '<hr><h6>Optimal Trading Hours</h6>';
+            html += `
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Best Selling Hours:</strong><br>
+                        ${data.optimal_times.best_sell_hours ? data.optimal_times.best_sell_hours.join(', ') + ' o\'clock' : 'N/A'}
+                    </div>
+                    <div class="col-6">
+                        <strong>Best Buying Hours:</strong><br>
+                        ${data.optimal_times.best_buy_hours ? data.optimal_times.best_buy_hours.join(', ') + ' o\'clock' : 'N/A'}
+                    </div>
+                </div>
+            `;
+        }
+        
+        tradingDiv.innerHTML = html;
+    }
+    
+    function loadMLPredictions() {
+        fetch('/api/ml-predictions')
+            .then(response => response.json())
+            .then(data => {
+                displayMLPredictions(data);
+            })
+            .catch(error => {
+                console.error('Error loading ML predictions:', error);
+                showError('ml-predictions', 'Failed to load ML predictions');
+            });
+    }
+    
+    function displayMLPredictions(data) {
+        const mlDiv = document.getElementById('ml-predictions');
+        
+        let html = '';
+        
+        // Fault probability
+        const faultProb = (data.fault_probability || 0) * 100;
+        const faultClass = faultProb > 70 ? 'danger' : faultProb > 30 ? 'warning' : 'success';
+        
+        html += `
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-${faultClass}">${faultProb.toFixed(1)}%</h4>
+                        <small class="text-muted">Fault Probability</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-info">${((data.performance_analysis?.avg_overall_efficiency || 0) * 100).toFixed(1)}%</h4>
+                        <small class="text-muted">Overall Efficiency</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <h4 class="text-success">${((data.performance_analysis?.energy_independence_score || 0) * 100).toFixed(1)}%</h4>
+                        <small class="text-muted">Energy Independence</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Recommendations
+        html += '<h6>AI Recommendations</h6>';
+        
+        if (data.recommendations && data.recommendations.length > 0) {
+            data.recommendations.forEach(rec => {
+                const badgeClass = rec.priority === 'high' ? 'danger' : rec.priority === 'medium' ? 'warning' : 'info';
+                html += `
+                    <div class="alert alert-${badgeClass === 'danger' ? 'danger' : badgeClass === 'warning' ? 'warning' : 'info'}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>${rec.title}</strong>
+                                <p class="mb-0 mt-1">${rec.description}</p>
+                            </div>
+                            <span class="badge bg-${badgeClass}">${rec.priority.toUpperCase()}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            html += `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    System is operating optimally. No recommendations at this time.
+                </div>
+            `;
+        }
+        
+        mlDiv.innerHTML = html;
+    }
+</script>
+{% endblock %}

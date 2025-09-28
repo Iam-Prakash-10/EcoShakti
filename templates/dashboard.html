@@ -1,0 +1,1343 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - EcoShakti{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-2">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="row mb-4">
+        <div class="col-12">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+    
+    <!-- Grid Disconnection Alert -->
+    <div class="alert alert-danger alert-dismissible" id="grid-disconnected-alert" style="display: none;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <div>
+                <strong>Grid Disconnected!</strong>
+                <div class="small">All monitoring systems are stopped. Charts are showing last known data. Connect to grid to resume real-time monitoring.</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Header Section -->
+    <div class="row mb-2">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">⚡ Energy Dashboard</h4>
+                    <p class="text-muted mb-0 small last-updated">Last updated: Loading...</p>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Grid Status Indicator -->
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="status-indicator" id="grid-status-indicator"></div>
+                        <span class="small" id="grid-status-text">Loading...</span>
+                    </div>
+                    
+                    <!-- Settings Button -->
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                        <i class="fas fa-cog me-1"></i> Settings
+                    </button>
+                    
+                    <!-- Personal Info Section -->
+                    {% if current_user.is_authenticated %}
+                    <div class="user-info-card card shadow-sm d-none d-md-block">
+                        <div class="card-body p-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="user-avatar">
+                                    <i class="fas fa-user-circle fs-3 text-primary"></i>
+                                </div>
+                                <div class="user-details">
+                                    <div class="fw-semibold small">{{ current_user.full_name or current_user.username }}</div>
+                                    <div class="text-muted" style="font-size: 11px;">{{ current_user.email }}</div>
+                                    <div class="text-muted" style="font-size: 10px;">Grid ID: {{ current_user.grid_id }}</div>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#profileModal">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Mobile User Info -->
+                    {% if current_user.is_authenticated %}
+                    <div class="d-md-none">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user me-1"></i>
+                                {{ current_user.username }}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li class="dropdown-header">Logged in as:</li>
+                                <li><span class="dropdown-item-text">
+                                    {{ current_user.email }}
+                                </span></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#profileModal">Profile</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshData()">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Metrics Row - Perfect Alignment -->
+    <div class="row g-3 mb-3">
+        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <i class="fas fa-sun solar-color fs-3"></i>
+                        <span class="status-indicator status-online"></span>
+                    </div>
+                    <div class="metric-value solar-color" id="solar-power">0</div>
+                    <div class="metric-unit small text-muted">W</div>
+                    <div class="metric-label small mt-2 fw-semibold">☀️ Solar</div>
+                    <small class="text-muted d-block mt-1"><span id="solar-efficiency">--</span>% efficiency</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <i class="fas fa-wind wind-color fs-3"></i>
+                        <span class="status-indicator status-online"></span>
+                    </div>
+                    <div class="metric-value wind-color" id="wind-power">0</div>
+                    <div class="metric-unit small text-muted">W</div>
+                    <div class="metric-label small mt-2 fw-semibold">💨 Wind</div>
+                    <small class="text-muted d-block mt-1"><span id="wind-speed">--</span> m/s speed</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <i class="fas fa-home consumption-color fs-3"></i>
+                        <span class="status-indicator" id="consumption-status"></span>
+                    </div>
+                    <div class="metric-value consumption-color" id="consumption">0</div>
+                    <div class="metric-unit small text-muted">W</div>
+                    <div class="metric-label small mt-2 fw-semibold">🏠 Usage</div>
+                    <small class="text-muted d-block mt-1"><span id="load-factor">--</span>% load</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-lg-3 col-md-6 col-sm-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <i class="fas fa-battery-three-quarters generation-color fs-3"></i>
+                        <span class="status-indicator" id="battery-status"></span>
+                    </div>
+                    <div class="metric-value generation-color" id="storage-percentage">0</div>
+                    <div class="metric-unit small text-muted">%</div>
+                    <div class="metric-label small mt-2 fw-semibold">🔋 Battery</div>
+                    <small class="text-muted d-block mt-1"><span id="storage-kwh">--</span> kWh stored</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Row - Full Width Optimization -->
+    <div class="row mb-3">
+        <!-- Power Chart - Reduced to make space -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 small">⚡ Power Overview</h6>
+                        <div class="btn-group btn-group-sm">
+                            <input type="radio" class="btn-check" name="timeRange" id="range1h" value="1" checked>
+                            <label class="btn btn-outline-primary btn-sm" for="range1h">1H</label>
+                            <input type="radio" class="btn-check" name="timeRange" id="range6h" value="6">
+                            <label class="btn btn-outline-primary btn-sm" for="range6h">6H</label>
+                            <input type="radio" class="btn-check" name="timeRange" id="range24h" value="24">
+                            <label class="btn btn-outline-primary btn-sm" for="range24h">24H</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div id="power-overview-chart" style="height: 320px; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alerts - Now taking more space -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header py-2">
+                    <h6 class="mb-0 small">🔔 Recent Alerts & System Status</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-success bg-opacity-10 rounded">
+                                <i class="fas fa-bolt text-success fs-5"></i>
+                                <div class="small fw-bold">System Status</div>
+                                <div class="small text-success">Online</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-info bg-opacity-10 rounded">
+                                <i class="fas fa-chart-line text-info fs-5"></i>
+                                <div class="small fw-bold">Performance</div>
+                                <div class="small text-info">Optimal</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="max-height: 250px; overflow-y: auto;">
+                        <div id="recent-alerts">
+                            {% if recent_alerts %}
+                                {% for alert in recent_alerts %}
+                                <div class="alert alert-{{ 'danger' if alert.severity.value == 'high' or alert.severity.value == 'critical' else 'warning' if alert.severity.value == 'medium' else 'info' }} py-1 px-2 mb-1 small">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong class="small">{{ alert.title }}</strong>
+                                            <div class="text-muted" style="font-size: 11px;">{{ alert.timestamp[:16] }}</div>
+                                        </div>
+                                        <button class="btn btn-sm p-0" onclick="acknowledgeAlert('{{ alert.id }}')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-muted py-2">
+                                    <i class="fas fa-check-circle mb-1"></i>
+                                    <p class="small mb-0">No alerts - System running smoothly</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Solar Analysis Row - Better Right Side Usage -->
+    <div class="row mb-3">
+        <!-- Solar Analysis - Reduced width -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header py-2">
+                    <h6 class="mb-0 small">☀️ Solar Analysis</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <div class="bg-warning bg-opacity-10 rounded p-1 text-center">
+                                <i class="fas fa-sun text-warning"></i>
+                                <div class="small fw-bold">Intensity</div>
+                                <span id="current-sun-intensity" class="small fw-bold text-warning">--</span>%
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="bg-success bg-opacity-10 rounded p-1 text-center">
+                                <i class="fas fa-bolt text-success"></i>
+                                <div class="small fw-bold">Power</div>
+                                <span id="current-solar-power" class="small fw-bold text-success">--</span>W
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info py-1 px-2 mb-2">
+                        <span class="small">Status: <strong id="solar-efficiency-status">--</strong></span>
+                    </div>
+                    <div id="sun-intensity-chart" style="height: 380px; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Battery Chart - Full Width -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header py-2">
+                    <h6 class="mb-0 small">🔋 Battery & Power Flow</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div id="storage-chart" style="height: 380px; width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bottom Statistics Row - Today's Stats & Trading -->
+    <div class="row mb-3">
+        <!-- Today's Stats -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header py-2 bg-light">
+                    <h6 class="mb-0 small">📈 Today's Stats</h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2">
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-success bg-opacity-10 rounded">
+                                <div class="small text-success fw-bold" id="total-generated">0</div>
+                                <div class="small text-muted mt-1">Generated (kWh)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-info bg-opacity-10 rounded">
+                                <div class="small text-info fw-bold" id="total-consumed">0</div>
+                                <div class="small text-muted mt-1">Consumed (kWh)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-warning bg-opacity-10 rounded">
+                                <div class="small text-warning fw-bold" id="grid-export">0</div>
+                                <div class="small text-muted mt-1">Exported (kWh)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-danger bg-opacity-10 rounded">
+                                <div class="small text-danger fw-bold" id="grid-import">0</div>
+                                <div class="small text-muted mt-1">Imported (kWh)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="my-3">
+                    <div class="row align-items-center">
+                        <div class="col-8">
+                            <div class="small text-muted">Energy Independence Score</div>
+                            <div class="progress mt-1" style="height: 8px;">
+                                <div class="progress-bar bg-gradient bg-success" id="independence-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="col-4 text-end">
+                            <div class="fw-bold text-success"><span id="independence-score">--</span>%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trading Info -->
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header py-2 bg-light">
+                    <h6 class="mb-0 small">💰 Energy Trading</h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-success bg-opacity-10 rounded">
+                                <i class="fas fa-arrow-up text-success mb-1"></i>
+                                <div class="small text-success fw-bold" id="potential-revenue">$0.00</div>
+                                <div class="small text-muted mt-1">Potential Revenue</div>
+                            </div>
+                        </div>
+                        <div class="col-6 text-center">
+                            <div class="p-2 bg-danger bg-opacity-10 rounded">
+                                <i class="fas fa-arrow-down text-danger mb-1"></i>
+                                <div class="small text-danger fw-bold" id="energy-cost">$0.00</div>
+                                <div class="small text-muted mt-1">Energy Costs</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info py-2 px-3 mb-3 border-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-lightbulb text-info me-2"></i>
+                            <div>
+                                <div class="small fw-semibold">Trading Advice</div>
+                                <div class="small" id="trading-advice">Analyzing market conditions...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <button class="btn btn-primary btn-sm px-4" onclick="viewTradingAnalysis()">
+                            <i class="fas fa-chart-bar me-2"></i>View Detailed Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- AI Chatbot Row -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header py-2 bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 small">
+                            <i class="fas fa-robot me-2"></i>🤖 Grid AI Assistant
+                        </h6>
+                        <button class="btn btn-sm btn-outline-light" onclick="clearChatHistory()">
+                            <i class="fas fa-broom me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-3">
+                    <!-- Chat Messages Area -->
+                    <div class="chat-container mb-3" id="chatContainer" style="height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; background-color: #f8f9fa;">
+                        <div class="chat-message bot-message">
+                            <div class="message-content">
+                                <i class="fas fa-robot text-primary me-2"></i>
+                                <strong>Grid AI:</strong> Hello! I'm your intelligent AI assistant. I can help with your renewable energy system AND answer general questions too!
+                                <br><br>
+                                <small class="text-muted">
+                                    🚀 <strong>Ready to help with:</strong> Energy analysis, math calculations, time & date, technology questions, and much more!
+                                </small>
+                            </div>
+                            <div class="message-time text-muted small mt-1">Just now</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Input Area -->
+                    <div class="chat-input-area">
+                        <div class="row g-2">
+                            <div class="col">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-primary text-white">
+                                        <i class="fas fa-comment"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="chatInput" 
+                                           placeholder="Ask me anything! Energy questions, math, time, general topics..." 
+                                           onkeypress="if(event.key==='Enter') sendChatMessage()">
+                                    <button class="btn btn-primary" onclick="sendChatMessage()" id="sendButton">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Question Buttons -->
+                        <div class="mt-2">
+                            <div class="d-flex flex-wrap gap-1">
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('What is my total consumption today?')">
+                                    📊 Today's Usage
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('What is my current battery status?')">
+                                    🔋 Battery Status
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" onclick="askQuickQuestion('What is my machine health status?')">
+                                    🏥 Machine Health
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('What time is it?')">
+                                    🕐 Time & Date
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('Calculate 25 + 15')">
+                                    🧮 Calculator
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('Tell me a joke')">
+                                    😄 Fun
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" onclick="askQuickQuestion('Help')">
+                                    ❓ Help
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="settingsModalLabel">
+                    <i class="fas fa-cog me-2"></i>Grid Connection Settings
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-plug me-2"></i>Grid Monitoring System
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <div class="fw-bold">Connection Status</div>
+                                        <div class="text-muted small">Current grid monitoring status</div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="status-indicator" id="settings-grid-indicator"></span>
+                                        <span class="fw-bold" id="settings-grid-text">Loading...</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <div class="fw-bold">Grid Control</div>
+                                        <div class="text-muted small">Connect or disconnect from grid monitoring</div>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="gridToggleSwitch" 
+                                               style="transform: scale(1.5);" onchange="toggleGridConnection()">
+                                        <label class="form-check-label ms-2" for="gridToggleSwitch" id="gridToggleLabel">
+                                            Enable Grid
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info mb-0">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas fa-info-circle me-2 mt-1"></i>
+                                        <div>
+                                            <div class="fw-bold small">How it works:</div>
+                                            <ul class="small mb-0 mt-1">
+                                                <li><strong>Connected:</strong> Real-time data updates, live charts, and alerts are active</li>
+                                                <li><strong>Disconnected:</strong> All monitoring stops, charts freeze at last known data</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Safety Information
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-warning mb-0">
+                                    <div class="small">
+                                        <strong>⚠️ Important:</strong> Disconnecting from the grid will stop all real-time monitoring and data collection. 
+                                        Use this feature only when you need to temporarily pause monitoring or perform maintenance.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Close
+                </button>
+                <button type="button" class="btn btn-primary" onclick="refreshGridStatus()">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Personal Info Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="profileModalLabel">
+                    <i class="fas fa-user-edit me-2"></i>Personal Information
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="profileForm">
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-info">
+                                <i class="fas fa-id-card me-2"></i>
+                                <strong>Your Unique Grid ID:</strong> <span class="text-primary fw-bold">{{ current_user.grid_id }}</span>
+                            </div>
+                        </div>
+                        {% if current_user.auth_provider == 'google' %}
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-success">
+                                <i class="fab fa-google me-2"></i>
+                                <strong>Logged in with Google:</strong> <span class="text-success fw-bold">{{ current_user.email }}</span>
+                                <div class="small text-muted mt-1">Your account is linked to your Google account for secure authentication.</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="fullName" class="form-label">Full Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                <input type="text" class="form-control" id="fullName" name="full_name" 
+                                       value="{{ current_user.full_name or '' }}" placeholder="Enter your full name">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="phoneNumber" class="form-label">Phone Number</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-phone"></i></span>
+                                <input type="tel" class="form-control" id="phoneNumber" name="phone_number" 
+                                       value="{{ current_user.phone_number or '' }}" placeholder="Enter phone number">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="email" class="form-label">
+                                Email Address
+                                {% if current_user.auth_provider == 'google' %}
+                                <i class="fab fa-google text-danger ms-1" title="Google Account"></i>
+                                {% endif %}
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    {% if current_user.auth_provider == 'google' %}
+                                    <i class="fab fa-google text-danger"></i>
+                                    {% else %}
+                                    <i class="fas fa-envelope"></i>
+                                    {% endif %}
+                                </span>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       value="{{ current_user.email }}" readonly>
+                            </div>
+                            {% if current_user.auth_provider == 'google' %}
+                            <small class="text-success">✓ This is your Google email address</small>
+                            {% else %}
+                            <small class="text-muted">Email cannot be changed from here</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="address" class="form-label">Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+                                <textarea class="form-control" id="address" name="address" rows="2" 
+                                          placeholder="Enter your complete address">{{ current_user.address or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="pincode" class="form-label">PIN Code</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-map-pin"></i></span>
+                                <input type="text" class="form-control" id="pincode" name="pincode" 
+                                       value="{{ current_user.pincode or '' }}" placeholder="Enter PIN code">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="state" class="form-label">State</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-flag"></i></span>
+                                <select class="form-select" id="state" name="state">
+                                    <option value="">Select State</option>
+                                    <option value="Andhra Pradesh" {{ 'selected' if current_user.state == 'Andhra Pradesh' }}>Andhra Pradesh</option>
+                                    <option value="Arunachal Pradesh" {{ 'selected' if current_user.state == 'Arunachal Pradesh' }}>Arunachal Pradesh</option>
+                                    <option value="Assam" {{ 'selected' if current_user.state == 'Assam' }}>Assam</option>
+                                    <option value="Bihar" {{ 'selected' if current_user.state == 'Bihar' }}>Bihar</option>
+                                    <option value="Chhattisgarh" {{ 'selected' if current_user.state == 'Chhattisgarh' }}>Chhattisgarh</option>
+                                    <option value="Goa" {{ 'selected' if current_user.state == 'Goa' }}>Goa</option>
+                                    <option value="Gujarat" {{ 'selected' if current_user.state == 'Gujarat' }}>Gujarat</option>
+                                    <option value="Haryana" {{ 'selected' if current_user.state == 'Haryana' }}>Haryana</option>
+                                    <option value="Himachal Pradesh" {{ 'selected' if current_user.state == 'Himachal Pradesh' }}>Himachal Pradesh</option>
+                                    <option value="Jharkhand" {{ 'selected' if current_user.state == 'Jharkhand' }}>Jharkhand</option>
+                                    <option value="Karnataka" {{ 'selected' if current_user.state == 'Karnataka' }}>Karnataka</option>
+                                    <option value="Kerala" {{ 'selected' if current_user.state == 'Kerala' }}>Kerala</option>
+                                    <option value="Madhya Pradesh" {{ 'selected' if current_user.state == 'Madhya Pradesh' }}>Madhya Pradesh</option>
+                                    <option value="Maharashtra" {{ 'selected' if current_user.state == 'Maharashtra' }}>Maharashtra</option>
+                                    <option value="Manipur" {{ 'selected' if current_user.state == 'Manipur' }}>Manipur</option>
+                                    <option value="Meghalaya" {{ 'selected' if current_user.state == 'Meghalaya' }}>Meghalaya</option>
+                                    <option value="Mizoram" {{ 'selected' if current_user.state == 'Mizoram' }}>Mizoram</option>
+                                    <option value="Nagaland" {{ 'selected' if current_user.state == 'Nagaland' }}>Nagaland</option>
+                                    <option value="Odisha" {{ 'selected' if current_user.state == 'Odisha' }}>Odisha</option>
+                                    <option value="Punjab" {{ 'selected' if current_user.state == 'Punjab' }}>Punjab</option>
+                                    <option value="Rajasthan" {{ 'selected' if current_user.state == 'Rajasthan' }}>Rajasthan</option>
+                                    <option value="Sikkim" {{ 'selected' if current_user.state == 'Sikkim' }}>Sikkim</option>
+                                    <option value="Tamil Nadu" {{ 'selected' if current_user.state == 'Tamil Nadu' }}>Tamil Nadu</option>
+                                    <option value="Telangana" {{ 'selected' if current_user.state == 'Telangana' }}>Telangana</option>
+                                    <option value="Tripura" {{ 'selected' if current_user.state == 'Tripura' }}>Tripura</option>
+                                    <option value="Uttar Pradesh" {{ 'selected' if current_user.state == 'Uttar Pradesh' }}>Uttar Pradesh</option>
+                                    <option value="Uttarakhand" {{ 'selected' if current_user.state == 'Uttarakhand' }}>Uttarakhand</option>
+                                    <option value="West Bengal" {{ 'selected' if current_user.state == 'West Bengal' }}>West Bengal</option>
+                                    <option value="Delhi" {{ 'selected' if current_user.state == 'Delhi' }}>Delhi</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="updateProfile()">
+                    <i class="fas fa-save me-2"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Global variables for dashboard
+    let refreshInterval;
+    let chartsInitialized = false;
+    let gridConnected = true;
+    let lastKnownData = {};
+    
+    // Grid connection management
+    function updateGridStatus(connected) {
+        gridConnected = connected;
+        
+        // Update header status
+        const headerIndicator = document.getElementById('grid-status-indicator');
+        const headerText = document.getElementById('grid-status-text');
+        
+        // Update settings modal status
+        const settingsIndicator = document.getElementById('settings-grid-indicator');
+        const settingsText = document.getElementById('settings-grid-text');
+        const toggleSwitch = document.getElementById('gridToggleSwitch');
+        const toggleLabel = document.getElementById('gridToggleLabel');
+        
+        // Update disconnection alert
+        const disconnectedAlert = document.getElementById('grid-disconnected-alert');
+        
+        if (connected) {
+            // Connected state
+            headerIndicator.className = 'status-indicator status-online';
+            headerText.textContent = 'Grid Connected';
+            headerText.className = 'small text-success';
+            
+            settingsIndicator.className = 'status-indicator status-online';
+            settingsText.textContent = 'Connected';
+            settingsText.className = 'fw-bold text-success';
+            
+            toggleSwitch.checked = true;
+            toggleLabel.textContent = 'Disable Grid';
+            
+            disconnectedAlert.style.display = 'none';
+            
+            // Resume chart updates
+            if (chartsInitialized) {
+                updateCharts();
+            }
+        } else {
+            // Disconnected state
+            headerIndicator.className = 'status-indicator status-danger';
+            headerText.textContent = 'Grid Disconnected';
+            headerText.className = 'small text-danger';
+            
+            settingsIndicator.className = 'status-indicator status-danger';
+            settingsText.textContent = 'Disconnected';
+            settingsText.className = 'fw-bold text-danger';
+            
+            toggleSwitch.checked = false;
+            toggleLabel.textContent = 'Enable Grid';
+            
+            disconnectedAlert.style.display = 'block';
+            
+            // Stop chart updates - charts will freeze at last known data
+        }
+    }
+    
+    function toggleGridConnection() {
+        const toggleSwitch = document.getElementById('gridToggleSwitch');
+        const newStatus = toggleSwitch.checked;
+        
+        // Show loading state
+        toggleSwitch.disabled = true;
+        
+        fetch('/api/grid/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ connect: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateGridStatus(data.connected);
+                showNotification(data.message, data.connected ? 'success' : 'warning');
+            } else {
+                showNotification('Failed to update grid connection: ' + data.error, 'error');
+                // Revert switch state
+                toggleSwitch.checked = !newStatus;
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling grid connection:', error);
+            showNotification('Failed to update grid connection', 'error');
+            // Revert switch state
+            toggleSwitch.checked = !newStatus;
+        })
+        .finally(() => {
+            toggleSwitch.disabled = false;
+        });
+    }
+    
+    function refreshGridStatus() {
+        fetch('/api/grid/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateGridStatus(data.connected);
+                    showNotification('Grid status refreshed', 'info');
+                } else {
+                    showNotification('Failed to get grid status', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error getting grid status:', error);
+                showNotification('Failed to get grid status', 'error');
+            });
+    }
+    
+    // Update dashboard metrics with current data
+    function updateDashboardMetrics(data) {
+        if (!data) return;
+        
+        // Store last known data
+        lastKnownData = { ...data };
+        
+        // Update power metrics
+        document.getElementById('solar-power').textContent = formatNumber(data.solar_power || 0);
+        document.getElementById('wind-power').textContent = formatNumber(data.wind_power || 0);
+        document.getElementById('consumption').textContent = formatNumber(data.consumption || 0);
+        document.getElementById('storage-percentage').textContent = formatNumber(data.storage_percentage || 0);
+        
+        // Update additional metrics
+        document.getElementById('wind-speed').textContent = formatNumber(data.wind_speed || 0, 1);
+        document.getElementById('storage-kwh').textContent = formatNumber(data.storage_kwh || 0, 1);
+        
+        // Update new current display elements
+        if (document.getElementById('current-sun-intensity')) {
+            document.getElementById('current-sun-intensity').textContent = formatNumber(data.sun_intensity || 0, 1);
+        }
+        if (document.getElementById('current-solar-power')) {
+            document.getElementById('current-solar-power').textContent = formatNumber(data.solar_power || 0);
+        }
+        
+        // Calculate and update efficiency metrics
+        const solarEfficiency = data.sun_intensity > 0 ? 
+            (data.solar_power / (data.sun_intensity * 100 * 0.75)) * 100 : 0;
+        document.getElementById('solar-efficiency').textContent = formatNumber(solarEfficiency, 1);
+        
+        // Update solar efficiency status
+        if (document.getElementById('solar-efficiency-status')) {
+            let efficiencyText = '';
+            let efficiencyClass = '';
+            if (solarEfficiency > 85) {
+                efficiencyText = `Excellent (${formatNumber(solarEfficiency, 1)}%)`;
+                efficiencyClass = 'text-success';
+            } else if (solarEfficiency > 70) {
+                efficiencyText = `Good (${formatNumber(solarEfficiency, 1)}%)`;
+                efficiencyClass = 'text-info';
+            } else if (solarEfficiency > 50) {
+                efficiencyText = `Fair (${formatNumber(solarEfficiency, 1)}%)`;
+                efficiencyClass = 'text-warning';
+            } else {
+                efficiencyText = `Poor (${formatNumber(solarEfficiency, 1)}%)`;
+                efficiencyClass = 'text-danger';
+            }
+            document.getElementById('solar-efficiency-status').textContent = efficiencyText;
+            document.getElementById('solar-efficiency-status').className = efficiencyClass;
+        }
+        
+        const loadFactor = (data.consumption / 10000) * 100; // Assuming 10kW max consumption
+        document.getElementById('load-factor').textContent = formatNumber(loadFactor, 1);
+        
+        // Update status indicators
+        updateStatusIndicators(data);
+        
+        // Update statistics
+        updateStatistics(data);
+        
+        // Update trading information
+        updateTradingInfo(data);
+    }
+    
+    function updateStatusIndicators(data) {
+        const batteryStatus = document.getElementById('battery-status');
+        const consumptionStatus = document.getElementById('consumption-status');
+        
+        // Battery status based on charge level
+        if (data.storage_percentage > 75) {
+            batteryStatus.className = 'status-indicator status-online';
+        } else if (data.storage_percentage > 25) {
+            batteryStatus.className = 'status-indicator status-warning';
+        } else {
+            batteryStatus.className = 'status-indicator status-danger';
+        }
+        
+        // Consumption status based on generation vs consumption
+        const netPower = (data.total_generation || 0) - (data.consumption || 0);
+        if (netPower > 0) {
+            consumptionStatus.className = 'status-indicator status-online';
+        } else if (netPower > -1000) {
+            consumptionStatus.className = 'status-indicator status-warning';
+        } else {
+            consumptionStatus.className = 'status-indicator status-danger';
+        }
+    }
+    
+    function updateStatistics(data) {
+        // These would be calculated from historical data in a real implementation
+        const totalGenerated = ((data.solar_power || 0) + (data.wind_power || 0)) / 1000 * 24 / 1000; // Rough estimate
+        const totalConsumed = (data.consumption || 0) / 1000 * 24 / 1000;
+        
+        document.getElementById('total-generated').textContent = formatNumber(totalGenerated, 2);
+        document.getElementById('total-consumed').textContent = formatNumber(totalConsumed, 2);
+        document.getElementById('grid-export').textContent = formatNumber(data.grid_export || 0, 2);
+        document.getElementById('grid-import').textContent = formatNumber(data.grid_import || 0, 2);
+        
+        // Energy independence score
+        const independenceScore = totalGenerated > 0 ? Math.min(100, (totalGenerated / totalConsumed) * 100) : 0;
+        document.getElementById('independence-score').textContent = formatNumber(independenceScore, 1);
+        document.getElementById('independence-bar').style.width = independenceScore + '%';
+    }
+    
+    function updateTradingInfo(data) {
+        const netPower = (data.net_power || 0);
+        
+        if (netPower > 2000) {
+            // Surplus - selling opportunity
+            const revenue = (netPower * 0.15 / 1000) * 24; // Daily potential
+            document.getElementById('potential-revenue').textContent = '$' + formatNumber(revenue, 2);
+            document.getElementById('trading-advice').textContent = 'Good time to sell excess energy to the grid.';
+        } else if (netPower < -1000) {
+            // Deficit - buying needed
+            const cost = (Math.abs(netPower) * 0.12 / 1000) * 24;
+            document.getElementById('energy-cost').textContent = '$' + formatNumber(cost, 2);
+            document.getElementById('trading-advice').textContent = 'Consider purchasing energy or reducing consumption.';
+        } else {
+            document.getElementById('trading-advice').textContent = 'Energy balance is optimal.';
+        }
+    }
+    
+    // Load and display charts with enhanced real-time updates
+    function updateCharts() {
+        // Only update charts if grid is connected
+        if (!gridConnected) {
+            console.log('Grid disconnected - skipping chart updates');
+            return;
+        }
+        
+        if (!chartsInitialized) {
+            initializeCharts();
+            chartsInitialized = true;
+        }
+        
+        // Load all charts with random data refresh
+        loadPowerOverviewChart();
+        loadSunIntensityChart();
+        loadStorageChart();
+        
+        // Schedule next update with slight randomization to make it feel more alive
+        if (gridConnected) {
+            setTimeout(updateCharts, 45000 + Math.random() * 30000); // 45-75 seconds (reduced frequency)
+        }
+    }
+    
+    function initializeCharts() {
+        // Initialize empty charts
+        showLoading('power-overview-chart');
+        showLoading('sun-intensity-chart');
+        showLoading('storage-chart');
+    }
+    
+    function loadPowerOverviewChart() {
+        const hours = document.querySelector('input[name="timeRange"]:checked').value;
+        console.log(`Loading power overview chart for ${hours} hours`);
+        
+        // Add loading indicator
+        const chartContainer = document.getElementById('power-overview-chart');
+        if (chartContainer && !chartContainer.querySelector('.loading-spinner')) {
+            showLoading('power-overview-chart');
+        }
+        
+        fetch(`/api/charts/power-overview?hours=${hours}&t=${Date.now()}`) // Add timestamp to prevent caching
+            .then(response => {
+                console.log('Power overview response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(chartData => {
+                console.log('Power overview chart data received:', chartData);
+                if (chartData && chartData.data && chartData.layout) {
+                    // Enhanced layout for better real-time feel
+                    chartData.layout.transition = {
+                        duration: 500,
+                        easing: 'cubic-in-out'
+                    };
+                    
+                    Plotly.newPlot('power-overview-chart', chartData.data, chartData.layout, {
+                        responsive: true,
+                        displayModeBar: false,
+                        showTips: false
+                    });
+                    console.log('Power overview chart rendered successfully');
+                } else {
+                    console.error('Invalid chart data structure:', chartData);
+                    showError('power-overview-chart', 'Invalid chart data received');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading power overview chart:', error);
+                showError('power-overview-chart', `Failed to load chart: ${error.message}`);
+            });
+    }
+    
+    function loadSunIntensityChart() {
+        console.log('Loading sun intensity chart');
+        
+        // Add loading indicator
+        showLoading('sun-intensity-chart');
+        
+        fetch(`/api/charts/sun-intensity-correlation?hours=24&t=${Date.now()}`)
+            .then(response => {
+                console.log('Sun intensity response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(chartData => {
+                console.log('Sun intensity chart data received:', chartData);
+                if (chartData.error) {
+                    console.error('Sun intensity chart error:', chartData.error);
+                    showError('sun-intensity-chart', chartData.error);
+                } else if (chartData && chartData.data && chartData.layout) {
+                    // Add smooth transitions
+                    chartData.layout.transition = {
+                        duration: 750,
+                        easing: 'cubic-in-out'
+                    };
+                    
+                    Plotly.newPlot('sun-intensity-chart', chartData.data, chartData.layout, {
+                        responsive: true,
+                        displayModeBar: false,
+                        showTips: false
+                    });
+                    console.log('Sun intensity chart rendered successfully');
+                } else {
+                    console.error('Invalid sun intensity chart data structure:', chartData);
+                    showError('sun-intensity-chart', 'Invalid chart data received');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading sun intensity chart:', error);
+                showError('sun-intensity-chart', `Failed to load chart: ${error.message}`);
+            });
+    }
+    
+    function loadStorageChart() {
+        console.log('Loading storage chart');
+        
+        // Add loading indicator
+        showLoading('storage-chart');
+        
+        fetch(`/api/charts/storage-status?hours=24&t=${Date.now()}`)
+            .then(response => {
+                console.log('Storage chart response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(chartData => {
+                console.log('Storage chart data received:', chartData);
+                if (chartData && chartData.data && chartData.layout) {
+                    // Add smooth transitions for real-time feel
+                    chartData.layout.transition = {
+                        duration: 800,
+                        easing: 'cubic-in-out'
+                    };
+                    
+                    Plotly.newPlot('storage-chart', chartData.data, chartData.layout, {
+                        responsive: true,
+                        displayModeBar: false,
+                        showTips: false
+                    });
+                    console.log('Storage chart rendered successfully');
+                } else {
+                    console.error('Invalid storage chart data structure:', chartData);
+                    showError('storage-chart', 'Invalid chart data received');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading storage chart:', error);
+                showError('storage-chart', `Failed to load chart: ${error.message}`);
+            });
+    }
+    
+    // Event handlers
+    function refreshData() {
+        if (!gridConnected) {
+            showNotification('Grid is disconnected. Connect to grid to refresh data.', 'warning');
+            return;
+        }
+        
+        if (socket.connected) {
+            socket.emit('request_data_update');
+        }
+        updateCharts();
+        showNotification('Data refreshed successfully', 'success');
+    }
+    
+    function exportData() {
+        // In a real implementation, this would export current data
+        showNotification('Data export feature coming soon!', 'info');
+    }
+    
+    function acknowledgeAlert(alertId) {
+        fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Alert acknowledged', 'success');
+                // Reload alerts or remove from DOM
+                location.reload();
+            } else {
+                showNotification('Failed to acknowledge alert', 'error');
+            }
+        });
+    }
+    
+    function viewTradingAnalysis() {
+        window.location.href = '/analysis';
+    }
+    
+    // AI Chatbot functions
+    function sendChatMessage() {
+        const chatInput = document.getElementById('chatInput');
+        const question = chatInput.value.trim();
+        
+        if (!question) {
+            showNotification('Please enter a question', 'warning');
+            return;
+        }
+        
+        // Add user message to chat
+        addChatMessage(question, 'user');
+        
+        // Clear input and show loading
+        chatInput.value = '';
+        const sendButton = document.getElementById('sendButton');
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        // Send question to API
+        fetch('/api/chatbot/ask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question: question })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addChatMessage(data.response, 'bot');
+            } else {
+                addChatMessage('Sorry, I encountered an error: ' + data.error, 'bot', true);
+            }
+        })
+        .catch(error => {
+            console.error('Chatbot error:', error);
+            addChatMessage('Sorry, I\'m having trouble connecting right now. Please try again.', 'bot', true);
+        })
+        .finally(() => {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+        });
+    }
+    
+    function askQuickQuestion(question) {
+        const chatInput = document.getElementById('chatInput');
+        chatInput.value = question;
+        sendChatMessage();
+    }
+    
+    function addChatMessage(message, sender, isError = false) {
+        const chatContainer = document.getElementById('chatContainer');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${sender}-message mb-3`;
+        
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        if (sender === 'user') {
+            messageDiv.innerHTML = `
+                <div class="d-flex justify-content-end">
+                    <div class="message-bubble user-bubble bg-primary text-white p-2 rounded" style="max-width: 80%;">
+                        <div class="message-content">
+                            <i class="fas fa-user me-2"></i>${message}
+                        </div>
+                        <div class="message-time small mt-1 opacity-75">${timeString}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const bgClass = isError ? 'bg-danger' : 'bg-light';
+            const textClass = isError ? 'text-white' : 'text-dark';
+            const icon = isError ? 'fas fa-exclamation-triangle' : 'fas fa-robot';
+            const iconColor = isError ? 'text-white' : 'text-primary';
+            
+            // Convert markdown-style formatting to HTML
+            const formattedMessage = formatBotMessage(message);
+            
+            messageDiv.innerHTML = `
+                <div class="d-flex justify-content-start">
+                    <div class="message-bubble bot-bubble ${bgClass} ${textClass} p-3 rounded" style="max-width: 85%; border: 1px solid #dee2e6;">
+                        <div class="message-content">
+                            <i class="${icon} ${iconColor} me-2"></i>
+                            <strong>Grid AI:</strong><br>
+                            ${formattedMessage}
+                        </div>
+                        <div class="message-time text-muted small mt-2">${timeString}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    function formatBotMessage(message) {
+        // Convert markdown-style formatting to HTML
+        let formatted = message
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // **bold**
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')  // *italic*
+            .replace(/\n/g, '<br>')  // line breaks
+            .replace(/•/g, '&bull;')  // bullet points
+            .replace(/(�[�-�]|�[�-�]|�[�-�])/g, '<span style="font-size: 1.1em;">$1</span>');  // emoji styling
+        
+        return formatted;
+    }
+    
+    function clearChatHistory() {
+        const chatContainer = document.getElementById('chatContainer');
+        chatContainer.innerHTML = `
+            <div class="chat-message bot-message">
+                <div class="message-content">
+                    <i class="fas fa-robot text-primary me-2"></i>
+                    <strong>Grid AI:</strong> Chat history cleared! I'm ready to help with energy questions, general topics, calculations, and more! How can I assist you today?
+                </div>
+                <div class="message-time text-muted small mt-1">Just now</div>
+            </div>
+        `;
+        showNotification('Chat history cleared', 'info');
+    }
+    
+    // Profile management functions
+    function updateProfile() {
+        const form = document.getElementById('profileForm');
+        const formData = new FormData(form);
+        
+        const profileData = {
+            full_name: formData.get('full_name'),
+            phone_number: formData.get('phone_number'),
+            address: formData.get('address'),
+            pincode: formData.get('pincode'),
+            state: formData.get('state')
+        };
+        
+        fetch('/api/profile/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(profileData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Profile updated successfully!', 'success');
+                // Update the displayed name in the header
+                const userNameDisplay = document.querySelector('.user-details .fw-semibold');
+                if (userNameDisplay && profileData.full_name) {
+                    userNameDisplay.textContent = profileData.full_name;
+                }
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('profileModal'));
+                modal.hide();
+            } else {
+                showNotification('Failed to update profile: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error updating profile:', error);
+            showNotification('Failed to update profile', 'error');
+        });
+    }
+    
+    // Time range change handler
+    document.addEventListener('change', function(e) {
+        if (e.target.name === 'timeRange') {
+            loadPowerOverviewChart();
+        }
+    });
+    
+    // Initialize dashboard when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get initial grid status
+        refreshGridStatus();
+        
+        // Initial data load
+        fetch('/api/current-data')
+            .then(response => response.json())
+            .then(data => {
+                currentData = data.data;
+                gridConnected = data.grid_connected;
+                updateDashboardMetrics(currentData);
+                updateGridStatus(gridConnected);
+                
+                if (gridConnected) {
+                    updateCharts();
+                }
+            })
+            .catch(error => {
+                console.error('Error loading initial data:', error);
+                showNotification('Failed to load initial data', 'error');
+            });
+    });
+</script>
+{% endblock %}

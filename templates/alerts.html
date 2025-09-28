@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% block title %}Alerts - EcoShakti{% endblock %}
+
+{% block head %}
+<style>
+    .alert-item {
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+    }
+    
+    .alert-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .alert-critical {
+        border-left-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .alert-high {
+        border-left-color: #fd7e14;
+        background-color: rgba(253, 126, 20, 0.05);
+    }
+    
+    .alert-medium {
+        border-left-color: #ffc107;
+        background-color: rgba(255, 193, 7, 0.05);
+    }
+    
+    .alert-low {
+        border-left-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+    }
+    
+    .severity-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .alert-icon {
+        font-size: 1.5rem;
+        margin-right: 1rem;
+    }
+    
+    .alert-timestamp {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .filter-card {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+    
+    .alert-actions {
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+    
+    .alert-item:hover .alert-actions {
+        opacity: 1;
+    }
+    
+    .summary-card {
+        text-align: center;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    
+    .summary-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    .summary-label {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+    
+    .type-distribution {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .type-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .alert-details {
+        display: none;
+        background-color: #f8f9fa;
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 0.375rem;
+    }
+    
+    .new-alert {
+        animation: slideIn 0.5s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Page Header -->
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Alert Management
+                    </h1>
+                    <p class="text-muted mb-0">Monitor system alerts and notifications</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary me-2" onclick="refreshAlerts()" id="refresh-btn">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="acknowledgeAll()">
+                        <i class="fas fa-check-double me-1"></i> Acknowledge All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Alert Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card summary-card">
+                <div class="summary-number">{{ alert_summary.total }}</div>
+                <div class="summary-label">Total Alerts</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; border: none; text-align: center; padding: 1.5rem;">
+                <div class="summary-number">{{ alert_summary.by_severity.critical + alert_summary.by_severity.high }}</div>
+                <div class="summary-label">Critical & High</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card" style="background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%); color: white; border: none; text-align: center; padding: 1.5rem;">
+                <div class="summary-number">{{ alert_summary.unread }}</div>
+                <div class="summary-label">Unread Alerts</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card" style="background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%); color: white; border: none; text-align: center; padding: 1.5rem;">
+                <div class="summary-number">{{ alert_summary.unacknowledged }}</div>
+                <div class="summary-label">Unacknowledged</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Filters & Controls -->
+        <div class="col-md-4 col-lg-3">
+            <div class="card filter-card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-filter me-2"></i>
+                        Filters
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Severity Level</label>
+                        <select class="form-select" id="severity-filter" onchange="filterAlerts()">
+                            <option value="">All Severities</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Alert Type</label>
+                        <select class="form-select" id="type-filter" onchange="filterAlerts()">
+                            <option value="">All Types</option>
+                            <option value="fault_detection">Fault Detection</option>
+                            <option value="low_efficiency">Low Efficiency</option>
+                            <option value="maintenance_required">Maintenance</option>
+                            <option value="energy_surplus">Energy Surplus</option>
+                            <option value="energy_deficit">Energy Deficit</option>
+                            <option value="battery_low">Battery Low</option>
+                            <option value="battery_full">Battery Full</option>
+                            <option value="trading_opportunity">Trading</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="status-filter" onchange="filterAlerts()">
+                            <option value="">All Status</option>
+                            <option value="unread">Unread Only</option>
+                            <option value="unacknowledged">Unacknowledged Only</option>
+                            <option value="acknowledged">Acknowledged Only</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                        <i class="fas fa-times me-1"></i> Clear Filters
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Alert Type Distribution -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        Alert Distribution
+                    </h6>
+                </div>
+                <div class="card-body type-distribution">
+                    {% for type_name, count in alert_summary.by_type.items() %}
+                    {% if count > 0 %}
+                    <div class="type-item">
+                        <span>
+                            <i class="fas fa-{{ 'exclamation-triangle' if type_name == 'fault_detection' else 'info-circle' }} me-2"></i>
+                            {{ type_name.replace('_', ' ').title() }}
+                        </span>
+                        <span class="badge bg-secondary">{{ count }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alert List -->
+        <div class="col-md-8 col-lg-9">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Recent Alerts
+                    </h6>
+                    <small class="text-muted last-updated">Last updated: --</small>
+                </div>
+                <div class="card-body p-0">
+                    <div id="alerts-container">
+                        {% if alerts %}
+                        {% for alert in alerts %}
+                        <div class="alert-item p-3 border-bottom alert-{{ alert.severity.value }}" 
+                             data-alert-id="{{ alert.id }}" 
+                             data-severity="{{ alert.severity.value }}" 
+                             data-type="{{ alert.alert_type.value }}"
+                             data-read="{{ alert.is_read|lower }}"
+                             data-acknowledged="{{ alert.is_acknowledged|lower }}">
+                            
+                            <div class="d-flex align-items-start">
+                                <!-- Alert Icon -->
+                                <div class="alert-icon">
+                                    {% if alert.alert_type.value == 'fault_detection' %}
+                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                    {% elif alert.alert_type.value == 'low_efficiency' %}
+                                        <i class="fas fa-chart-line-down text-warning"></i>
+                                    {% elif alert.alert_type.value == 'maintenance_required' %}
+                                        <i class="fas fa-tools text-info"></i>
+                                    {% elif alert.alert_type.value == 'battery_low' %}
+                                        <i class="fas fa-battery-quarter text-danger"></i>
+                                    {% elif alert.alert_type.value == 'battery_full' %}
+                                        <i class="fas fa-battery-full text-success"></i>
+                                    {% elif alert.alert_type.value == 'energy_surplus' %}
+                                        <i class="fas fa-arrow-up text-success"></i>
+                                    {% elif alert.alert_type.value == 'energy_deficit' %}
+                                        <i class="fas fa-arrow-down text-warning"></i>
+                                    {% elif alert.alert_type.value == 'trading_opportunity' %}
+                                        <i class="fas fa-exchange-alt text-primary"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle text-info"></i>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Alert Content -->
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="mb-0">
+                                            {{ alert.title }}
+                                            {% if not alert.is_read %}
+                                                <span class="badge bg-primary ms-2">New</span>
+                                            {% endif %}
+                                        </h6>
+                                        <div class="alert-actions">
+                                            <span class="severity-badge badge bg-{{ 'danger' if alert.severity.value == 'critical' else 'warning' if alert.severity.value == 'high' else 'info' if alert.severity.value == 'medium' else 'success' }}">
+                                                {{ alert.severity.value.title() }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <p class="mb-2 text-muted">{{ alert.message }}</p>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="alert-timestamp">
+                                            <i class="fas fa-clock me-1"></i>
+                                            {{ moment(alert.timestamp).fromNow() if moment else alert.timestamp }}
+                                        </small>
+                                        
+                                        <div class="btn-group btn-group-sm alert-actions">
+                                            {% if not alert.is_read %}
+                                            <button class="btn btn-outline-primary btn-sm" 
+                                                    onclick="markAsRead('{{ alert.id }}')">
+                                                <i class="fas fa-eye me-1"></i> Mark Read
+                                            </button>
+                                            {% endif %}
+                                            
+                                            {% if not alert.is_acknowledged %}
+                                            <button class="btn btn-outline-success btn-sm" 
+                                                    onclick="acknowledgeAlert('{{ alert.id }}')">
+                                                <i class="fas fa-check me-1"></i> Acknowledge
+                                            </button>
+                                            {% endif %}
+                                            
+                                            <button class="btn btn-outline-info btn-sm" 
+                                                    onclick="toggleDetails('{{ alert.id }}')">
+                                                <i class="fas fa-info me-1"></i> Details
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Alert Details (Hidden by default) -->
+                                    {% if alert.data %}
+                                    <div class="alert-details" id="details-{{ alert.id }}">
+                                        <h6>Additional Information:</h6>
+                                        <div class="row">
+                                            {% for key, value in alert.data.items() %}
+                                            <div class="col-sm-6 mb-2">
+                                                <strong>{{ key.replace('_', ' ').title() }}:</strong>
+                                                {% if key in ['expected_power', 'actual_power', 'surplus_power', 'deficit_power'] %}
+                                                    {{ "%.0f"|format(value) }} W
+                                                {% elif key in ['efficiency_loss', 'storage_percentage'] %}
+                                                    {{ "%.1f"|format(value) }}%
+                                                {% elif key in ['estimated_revenue', 'estimated_cost'] %}
+                                                    ${{ "%.2f"|format(value) }}
+                                                {% else %}
+                                                    {{ value }}
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-check-circle text-success mb-3" style="font-size: 3rem;"></i>
+                            <h5>No Alerts</h5>
+                            <p class="text-muted">All systems are operating normally</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Alert management functions
+    function refreshAlerts() {
+        const btn = document.getElementById('refresh-btn');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Refreshing...';
+        btn.disabled = true;
+        
+        // Simulate refresh delay
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    }
+    
+    function filterAlerts() {
+        const severityFilter = document.getElementById('severity-filter').value;
+        const typeFilter = document.getElementById('type-filter').value;
+        const statusFilter = document.getElementById('status-filter').value;
+        
+        const alertItems = document.querySelectorAll('.alert-item');
+        
+        alertItems.forEach(item => {
+            let show = true;
+            
+            if (severityFilter && item.dataset.severity !== severityFilter) {
+                show = false;
+            }
+            
+            if (typeFilter && item.dataset.type !== typeFilter) {
+                show = false;
+            }
+            
+            if (statusFilter) {
+                if (statusFilter === 'unread' && item.dataset.read === 'true') {
+                    show = false;
+                }
+                if (statusFilter === 'unacknowledged' && item.dataset.acknowledged === 'true') {
+                    show = false;
+                }
+                if (statusFilter === 'acknowledged' && item.dataset.acknowledged === 'false') {
+                    show = false;
+                }
+            }
+            
+            item.style.display = show ? 'block' : 'none';
+        });
+        
+        // Update visible count
+        const visibleCount = document.querySelectorAll('.alert-item[style="display: block;"], .alert-item:not([style*="display: none"])').length;
+        updateFilterCount(visibleCount);
+    }
+    
+    function clearFilters() {
+        document.getElementById('severity-filter').value = '';
+        document.getElementById('type-filter').value = '';
+        document.getElementById('status-filter').value = '';
+        filterAlerts();
+    }
+    
+    function updateFilterCount(count) {
+        // You can add a count display here if needed
+        console.log(`Showing ${count} alerts`);
+    }
+    
+    function markAsRead(alertId) {
+        fetch(`/api/alerts/${alertId}/read`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const alertItem = document.querySelector(`[data-alert-id="${alertId}"]`);
+                if (alertItem) {
+                    // Remove "New" badge
+                    const newBadge = alertItem.querySelector('.badge.bg-primary');
+                    if (newBadge) newBadge.remove();
+                    
+                    // Remove mark as read button
+                    const readBtn = alertItem.querySelector('button[onclick*="markAsRead"]');
+                    if (readBtn) readBtn.remove();
+                    
+                    // Update dataset
+                    alertItem.dataset.read = 'true';
+                }
+                showNotification('Alert marked as read', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Failed to mark alert as read', 'danger');
+        });
+    }
+    
+    function acknowledgeAlert(alertId) {
+        fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const alertItem = document.querySelector(`[data-alert-id="${alertId}"]`);
+                if (alertItem) {
+                    // Remove acknowledge button
+                    const ackBtn = alertItem.querySelector('button[onclick*="acknowledgeAlert"]');
+                    if (ackBtn) ackBtn.remove();
+                    
+                    // Update dataset
+                    alertItem.dataset.acknowledged = 'true';
+                    
+                    // Add acknowledged indicator
+                    const timestamp = alertItem.querySelector('.alert-timestamp');
+                    if (timestamp && !timestamp.querySelector('.acknowledged-indicator')) {
+                        timestamp.innerHTML += ' <i class="fas fa-check-circle text-success acknowledged-indicator ms-2" title="Acknowledged"></i>';
+                    }
+                }
+                showNotification('Alert acknowledged', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Failed to acknowledge alert', 'danger');
+        });
+    }
+    
+    function acknowledgeAll() {
+        const unacknowledgedAlerts = document.querySelectorAll('[data-acknowledged="false"]');
+        
+        if (unacknowledgedAlerts.length === 0) {
+            showNotification('No unacknowledged alerts', 'info');
+            return;
+        }
+        
+        if (confirm(`Acknowledge all ${unacknowledgedAlerts.length} unacknowledged alerts?`)) {
+            let processed = 0;
+            
+            unacknowledgedAlerts.forEach(alertItem => {
+                const alertId = alertItem.dataset.alertId;
+                
+                fetch(`/api/alerts/${alertId}/acknowledge`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    processed++;
+                    if (data.success) {
+                        // Remove acknowledge button
+                        const ackBtn = alertItem.querySelector('button[onclick*="acknowledgeAlert"]');
+                        if (ackBtn) ackBtn.remove();
+                        
+                        // Update dataset
+                        alertItem.dataset.acknowledged = 'true';
+                        
+                        // Add acknowledged indicator
+                        const timestamp = alertItem.querySelector('.alert-timestamp');
+                        if (timestamp && !timestamp.querySelector('.acknowledged-indicator')) {
+                            timestamp.innerHTML += ' <i class="fas fa-check-circle text-success acknowledged-indicator ms-2" title="Acknowledged"></i>';
+                        }
+                    }
+                    
+                    if (processed === unacknowledgedAlerts.length) {
+                        showNotification('All alerts acknowledged', 'success');
+                        // Refresh page after a short delay
+                        setTimeout(() => location.reload(), 2000);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    processed++;
+                });
+            });
+        }
+    }
+    
+    function toggleDetails(alertId) {
+        const details = document.getElementById(`details-${alertId}`);
+        if (details) {
+            if (details.style.display === 'none' || !details.style.display) {
+                details.style.display = 'block';
+            } else {
+                details.style.display = 'none';
+            }
+        }
+    }
+    
+    // Auto-refresh alerts every 2 minutes (reduced frequency)
+    setInterval(() => {
+        // Check for new alerts via API
+        fetch('/api/alerts?limit=5')
+            .then(response => response.json())
+            .then(data => {
+                // Update alert badge in navigation
+                if (data.summary && data.summary.unread > 0) {
+                    updateAlertBadge(data.summary.unread);
+                }
+            })
+            .catch(error => console.error('Error fetching alerts:', error));
+    }, 120000); // Check every 2 minutes (reduced frequency)
+    
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up moment.js for relative timestamps if available
+        if (typeof moment !== 'undefined') {
+            document.querySelectorAll('.alert-timestamp').forEach(el => {
+                const timestamp = el.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+                if (timestamp) {
+                    el.innerHTML = '<i class="fas fa-clock me-1"></i>' + moment(timestamp[0]).fromNow();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
