@@ -1,10 +1,5 @@
-# IMPORTANT: eventlet monkey patch MUST be first for gunicorn eventlet worker
+# IMPORTANT: No monkey patching needed for gevent worker
 import os
-
-# Only monkey patch if using eventlet (production with gunicorn)
-if os.environ.get('FLASK_ENV') == 'production':
-    import eventlet
-    eventlet.monkey_patch()
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user

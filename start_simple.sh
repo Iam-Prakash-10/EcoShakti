@@ -1,7 +1,7 @@
 #!/bin/bash
-# Ultra-simple startup script for Render
+# Ultra-simple startup script for Render - No eventlet dependency
 
-echo "🚀 Starting EcoShakti (Ultra-Simple Mode)..."
+echo "🚀 Starting EcoShakti (Clean Mode)..."
 
 # Set environment
 export FLASK_ENV=production
@@ -13,11 +13,17 @@ if [ -z "$PORT" ]; then
 fi
 
 echo "Using PORT: $PORT"
+echo "Python version: $(python --version)"
+echo "Current directory: $(pwd)"
 
 # Create basic directories (no heavy operations)
 mkdir -p logs uploads
 
-# Start with minimal gunicorn configuration
+# List Python packages to verify gevent is installed
+echo "Checking gevent installation..."
+python -c "import gevent; print(f'gevent version: {gevent.__version__}')" || echo "gevent not found!"
+
+# Start with clean gunicorn configuration - no eventlet
 echo "Starting gunicorn server on 0.0.0.0:$PORT..."
 exec gunicorn \
   --bind "0.0.0.0:$PORT" \

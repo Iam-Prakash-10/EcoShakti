@@ -29,8 +29,15 @@ def main():
     # Try to import the app
     try:
         print("📦 Importing Flask app...")
+        # Set production mode before import to avoid any eventlet issues
+        os.environ['FLASK_ENV'] = 'production'
         from app import app
         print("✅ App imported successfully")
+        
+        # Test the health endpoint
+        with app.test_client() as client:
+            response = client.get('/api/health')
+            print(f"✅ Health check: {response.status_code}")
         
         # Start with simple wsgi server for testing
         print(f"🚀 Starting app on 0.0.0.0:{port}...")
@@ -41,6 +48,8 @@ def main():
         sys.exit(1)
     except Exception as e:
         print(f"❌ Startup error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == '__main__':
