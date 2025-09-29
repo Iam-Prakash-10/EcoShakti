@@ -2,13 +2,10 @@ services:
   - type: web
     name: ecoshakti
     env: python
-    buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: gunicorn --config gunicorn.conf.py app:app
+    buildCommand: pip install -r requirements.txt && mkdir -p logs uploads
+    startCommand: chmod +x start.sh && ./start.sh
     envVars:
       - key: FLASK_ENV
         value: production
       - key: PYTHON_VERSION
         value: 3.11.0
-    disk:
-      size: 1GB
-      mount: /opt/render/project/src
