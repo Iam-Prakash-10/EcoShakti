@@ -1,8 +1,10 @@
 # Gunicorn configuration for EcoShakti
 import multiprocessing
+import os
 
-# Server socket
-bind = "0.0.0.0:5000"
+# Server socket - Use PORT environment variable for cloud deployment
+port = os.environ.get('PORT', '5000')
+bind = f"0.0.0.0:{port}"
 backlog = 2048
 
 # Worker processes
@@ -17,8 +19,16 @@ max_requests = 1000
 max_requests_jitter = 100
 
 # Logging
-accesslog = "logs/access.log"
-errorlog = "logs/error.log"
+# Create logs directory if it doesn't exist
+try:
+    import os
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+except:
+    pass
+
+accesslog = "-"  # Log to stdout for cloud platforms
+errorlog = "-"   # Log to stderr for cloud platforms
 loglevel = "info"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 

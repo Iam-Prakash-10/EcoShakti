@@ -1881,8 +1881,8 @@ def get_historical_data_for_date(target_date):
         print(f"Error getting historical data for date: {e}")
         return []
 
-if __name__ == '__main__':
-    # Create some sample data and train models if needed
+def initialize_app():
+    """Initialize the application for production deployment"""
     print("Initializing EcoShakti monitoring system...")
     
     # Generate some sample data for ML training
@@ -1896,5 +1896,18 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Warning: Could not train ML models: {e}")
     
-    print("Starting Flask-SocketIO server...")
-    socketio.run(app, debug=False, host='0.0.0.0', port=5000)  # Disabled debug mode to prevent auto-reload
+    print("EcoShakti initialization complete!")
+
+# Initialize the app when imported (for production deployment)
+if os.environ.get('FLASK_ENV') == 'production':
+    initialize_app()
+
+if __name__ == '__main__':
+    # Only run the development server if not in production
+    if os.environ.get('FLASK_ENV') != 'production':
+        # Initialize for development
+        initialize_app()
+        print("Starting Flask-SocketIO development server...")
+        socketio.run(app, debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    else:
+        print("Production mode: Use gunicorn to start the server")
