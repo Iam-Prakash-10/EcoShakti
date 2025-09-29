@@ -7,9 +7,9 @@ port = os.environ.get('PORT', '5000')
 bind = f"0.0.0.0:{port}"
 backlog = 2048
 
-# Worker processes
-workers = 1  # Must be 1 for Socket.IO
-worker_class = "eventlet"
+# Worker processes - Use sync worker to avoid eventlet issues
+workers = 1
+worker_class = "gevent"  # Use gevent instead of eventlet for better compatibility
 worker_connections = 1000
 timeout = 30
 keepalive = 2

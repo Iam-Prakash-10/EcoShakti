@@ -3,7 +3,7 @@ services:
     name: ecoshakti
     env: python
     buildCommand: pip install -r requirements.txt && mkdir -p logs uploads
-    startCommand: chmod +x start.sh && ./start.sh
+    startCommand: chmod +x start_simple.sh && ./start_simple.sh
     envVars:
       - key: FLASK_ENV
         value: production
